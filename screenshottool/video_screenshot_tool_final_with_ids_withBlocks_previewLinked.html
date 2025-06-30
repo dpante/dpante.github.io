@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Video Screenshot Tool</title>
+<style>
+    body { font-family: sans-serif; margin: 20px; position: relative; }
+    video { width: 100%; max-width: 640px; margin-bottom: 10px; }
+    canvas { display: none; }
+    #cropContainer {
+      position: absolute;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+    }
+    .crop-box {
+      position: absolute;
+      border: 2px dashed blue;
+      pointer-events: auto;
+      box-sizing: border-box;
+    }
+    .crop-box.small { border-color: green; }
+    .resize-handle {
+      width: 10px;
+      height: 10px;
+      background: white;
+      border: 1px solid black;
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      cursor: nwse-resize;
+    }
+    .screenshot-set {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+    .screenshot-set div { text-align: center; }
+    .screenshot-set img {
+      margin: 5px;
+      border: 1px solid #ccc;
+      display: block;
+    }
+    .delete-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .screenshots {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+<h1>Video Screenshot Tool</h1>
+<input accept="video/*" id="videoFile" type="file"/><br/>
+<video controls="" id="video"></video><br/>
+<div class="controls">
+<button id="captureBtn">Capture Screenshot</button>
+<button id="clearBtn">Delete All Screenshots</button>
+<button id="confirmBtn" style="display:none">Confirm Crops</button>
+</div>
+<div class="screenshots" id="screenshots"></div>
+<canvas height="1080" id="canvas" width="1920"></canvas>
+<div id="cropContainer"></div>
+<div id="preview1" style="padding-top: 100px;">
+<img id="img-1200" style="z-index: 1; max-width: auto; height: 116px; position: absolute; padding-left: 170px; padding-top: 62px;"/>
+<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_LogoImage_1200x1200_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"/></div>
+<div id="preview2" style="padding-top: 400px">
+<img id="img-50" style="z-index: 1; max-width: auto; height: 46px; position: absolute; padding-left: 90px; padding-top: 8px"/>
+<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_NavigationBranding_200x50_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"/></div>
+<script>
+    const video = document.getElementById("video");
+    const videoFile = document.getElementById("videoFile");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const screenshotsDiv = document.getElementById("screenshots");
+    const cropContainer = document.getElementById("cropContainer");
+    const confirmBtn = document.getElementById("confirmBtn");
+    let count = 0;
+    let crops = {};
+    let currentImage = null;
+
+    videoFile.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        video.src = URL.createObjectURL(file);
+        video.load();
+      }
+    });
+
+    document.getElementById("captureBtn").addEventListener("click", () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        const fullURL = URL.createObjectURL(blob);
+        const img = new Image();
+        img.src = fullURL;
+        img.onload = () => enableCropBoxes(img, fullURL);
+      }, 'image/png');
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      screenshotsDiv.innerHTML = "";
+      count = 0;
+      cropContainer.innerHTML = "";
+      confirmBtn.style.display = "none";
+      currentImage = null;
+      crops = {};
+      const currentTime = video.currentTime;
+      video.currentTime = currentTime + 0.00001;
+    });
+
+    function enableCropBoxes(img, fullURL) {
+      cropContainer.innerHTML = "";
+      cropContainer.style.width = video.offsetWidth + 'px';
+      cropContainer.style.height = video.offsetHeight + 'px';
+      cropContainer.style.top = video.offsetTop + 'px';
+      cropContainer.style.left = video.offsetLeft + 'px';
+      cropContainer.style.position = 'absolute';
+
+      confirmBtn.style.display = "inline-block";
+      currentImage = img;
+      img.fullURL = fullURL;
+
+      createCropBox("1200", 120, 120, "blue", 1);
+      createCropBox("200", 80, 20, "green", 4);
+
+      confirmBtn.onclick = () => finalizeCrops(img);
+    }
+
+    function createCropBox(key, w, h, color, aspectRatio) {
+      const box = document.createElement("div");
+      box.className = "crop-box" + (key === "200" ? " small" : "");
+      box.style.width = w + "px";
+      box.style.height = h + "px";
+      box.style.top = "100px";
+      box.style.left = "100px";
+      box.style.borderColor = color;
+      cropContainer.appendChild(box);
+
+      const resize = document.createElement("div");
+      resize.className = "resize-handle";
+      box.appendChild(resize);
+
+      resize.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = box.offsetWidth;
+        const startH = box.offsetHeight;
+
+        function resizeMove(ev) {
+          const dx = ev.clientX - startX;
+          let newW = startW + dx;
+          let newH = newW / aspectRatio;
+          box.style.width = newW + "px";
+          box.style.height = newH + "px";
+        }
+
+        function stopResize() {
+          document.removeEventListener("mousemove", resizeMove);
+          document.removeEventListener("mouseup", stopResize);
+        }
+
+        document.addEventListener("mousemove", resizeMove);
+        document.addEventListener("mouseup", stopResize);
+      });
+
+      box.addEventListener("mousedown", (e) => {
+        if (e.target !== box) return;
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLeft = parseInt(box.style.left);
+        const startTop = parseInt(box.style.top);
+
+        function dragMove(ev) {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          box.style.left = startLeft + dx + "px";
+          box.style.top = startTop + dy + "px";
+        }
+
+        function stopDrag() {
+          document.removeEventListener("mousemove", dragMove);
+          document.removeEventListener("mouseup", stopDrag);
+        }
+
+        document.addEventListener("mousemove", dragMove);
+        document.addEventListener("mouseup", stopDrag);
+      });
+
+      crops[key] = { box: box, aspectRatio: aspectRatio };
+    }
+
+    function finalizeCrops(img) {
+      const setDiv = document.createElement("div");
+      setDiv.className = "screenshot-set";
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.textContent = "×";
+      deleteBtn.className = "delete-btn";
+      deleteBtn.onclick = () => setDiv.remove();
+      setDiv.appendChild(deleteBtn);
+
+      addLabeledImage(setDiv, img.fullURL, "Full (1920x1080)", 160);
+
+      const cropOrder = [
+        { key: "1200", label: "Cropped (1200x1200)" },
+        { key: "200", label: "Small (200x50)" }
+      ];
+
+      cropOrder.forEach(({ key, label }) => {
+        const box = crops[key].box;
+        const rect = box.getBoundingClientRect();
+        const containerRect = cropContainer.getBoundingClientRect();
+        const scaleX = img.naturalWidth / containerRect.width;
+        const scaleY = img.naturalHeight / containerRect.height;
+        const x = (rect.left - containerRect.left) * scaleX;
+        const y = (rect.top - containerRect.top) * scaleY;
+        const w = rect.width * scaleX;
+        const h = rect.height * scaleY;
+
+        const cropCanvas = document.createElement("canvas");
+        cropCanvas.width = key === "1200" ? 1200 : 200;
+        cropCanvas.height = key === "1200" ? 1200 : 50;
+        const cropCtx = cropCanvas.getContext("2d");
+        cropCtx.drawImage(img, x, y, w, h, 0, 0, cropCanvas.width, cropCanvas.height);
+        cropCanvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          addLabeledImage(setDiv, url, label, 160);
+        }, 'image/png');
+      });
+
+      screenshotsDiv.appendChild(setDiv);
+      count++;
+    }
+
+    function addLabeledImage(container, src, label, width) {
+      const wrapper = document.createElement("div");
+      const img = document.createElement("img");
+      img.src = src;
+      img.style.maxWidth = width + "px";
+      img.style.height = "auto";
+      img.setAttribute("draggable", "true");
+      img.setAttribute("title", "Right-click to save or open in new tab");
+
+      const caption = document.createElement("div");
+      caption.textContent = label;
+
+      
+    if (label.includes("Full (1920x1080)")) img.id = "img-1080";
+    else if (label.includes("1200x1200")) img.id = "img-1200";
+    else if (label.includes("200x50")) img.id = "img-50";
+    
+    if (label.includes("Full (1920x1080)")) {
+      img.id = "img-1080";
+    } else if (label.includes("1200x1200")) {
+      img.id = "img-1200";
+      const preview = document.querySelector('#preview1 #img-1200');
+      if (preview) preview.src = src;
+    } else if (label.includes("200x50")) {
+      img.id = "img-50";
+      const preview = document.querySelector('#preview2 #img-50');
+      if (preview) preview.src = src;
+    }
+    wrapper.appendChild(img);
+    
+    
+      wrapper.appendChild(caption);
+      container.appendChild(wrapper);
+    }
+  </script>
+</body>
+</html>
