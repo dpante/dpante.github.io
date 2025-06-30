@@ -82,15 +82,12 @@
 <div class="screenshots" id="screenshots"></div>
 <canvas height="1080" id="canvas" width="1920"></canvas>
 <div id="cropContainer"></div>
-
 <div id="preview1" style="padding-top: 100px;">
-<img id="img-1200" style="z-index: 1; max-width: auto; height: 116px; position: absolute; padding-left: 170px; padding-top: 62px;">
-<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_LogoImage_1200x1200_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"></div>
-
+<img id="img-1200" style="z-index: 1; max-width: auto; height: 116px; position: absolute; padding-left: 170px; padding-top: 62px;"/>
+<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_LogoImage_1200x1200_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"/></div>
 <div id="preview2" style="padding-top: 400px">
-<img id="img-50" style="z-index: 1; max-width: auto; height: 46px; position: absolute; padding-left: 90px; padding-top: 8px">
-<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_NavigationBranding_200x50_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"></div>
-
+<img id="img-50" style="z-index: 1; max-width: auto; height: 46px; position: absolute; padding-left: 90px; padding-top: 8px"/>
+<img src="https://github.com/dpante/dpante.github.io/blob/main/screenshottool/Preview_NavigationBranding_200x50_cut.png?raw=true" style="z-index: 2; max-width: 600px; height: auto; position: absolute"/></div>
 <script>
     const video = document.getElementById("video");
     const videoFile = document.getElementById("videoFile");
@@ -277,7 +274,43 @@
     if (label.includes("Full (1920x1080)")) img.id = "img-1080";
     else if (label.includes("1200x1200")) img.id = "img-1200";
     else if (label.includes("200x50")) img.id = "img-50";
+    
+    if (label.includes("Full (1920x1080)")) {
+      img.id = "img-1080";
+    } else if (label.includes("1200x1200")) {
+      img.id = "img-1200";
+      const preview = document.querySelector('#preview1 #img-1200');
+      if (preview) preview.src = src;
+    } else if (label.includes("200x50")) {
+      img.id = "img-50";
+      const preview = document.querySelector('#preview2 #img-50');
+      if (preview) preview.src = src;
+    }
+    
+    if (label.includes("Full (1920x1080)")) {
+      img.id = "img-1080";
+    } else if (label.includes("1200x1200")) {
+      img.id = "img-1200";
+      const preview = document.querySelector('#preview1 #img-1200');
+      if (preview) preview.src = src;
+    } else if (label.includes("200x50")) {
+      img.id = "img-50";
+      const preview = document.querySelector('#preview2 #img-50');
+      if (preview) preview.src = src;
+    }
     wrapper.appendChild(img);
+    
+    const link = document.createElement("a");
+    link.href = src;
+    if (label.includes("Full (1920x1080)")) link.download = "Screenshot_1920x1080.png";
+    else if (label.includes("1200x1200")) link.download = "Screenshot_1200x1200.png";
+    else if (label.includes("200x50")) link.download = "Screenshot_200x50.png";
+    link.textContent = "Download";
+    link.style.display = "inline-block";
+    link.style.marginTop = "4px";
+    wrapper.appendChild(link);
+
+    
     
       wrapper.appendChild(caption);
       container.appendChild(wrapper);
